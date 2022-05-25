@@ -32,7 +32,7 @@ Optional arguments:
 #set your working directory to mu_calculator
 cd ./mu_calculator
 #run mu.py
-python .mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.tsv --savepath save/directory/ --cores 20 --maxaf 0.01
+python mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.tsv --savepath save/directory/ --cores 20 --maxaf 0.01
 ```
 
 ## Output
