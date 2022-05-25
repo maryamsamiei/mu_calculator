@@ -14,13 +14,13 @@ Required arguments:
 | ---------------------- |--------------------- |
 | --VCF                | Path to annotated VCF file |
 | --samples            |Path to one-column tab seperated (.txt, .tsv) file with sample IDs in the first column. There should be no header row|
-| --savepath           | Path for output files |
+| --savepath           | Path for output file |
 | --cores              | number of cpus to use |
 
 Optional arguments:
 | Argument                 | Descripion |
 | ---------------------- |--------------------- |
-| --maxaf  | sets maximum allele frequency threshold for ML pipelines (default: 0.01) |
+| --maxaf  | sets maximum allele frequency threshold, so mu will be calculated for variants with frequency less than this threshold |
 | --Ann      | Variant annotation pipeline used (options: ANNOVAR, VEP / default: VEP) |
 | --ref      | genome reference (options: hg19, hg38 / default: hg38) |
 | --GeneLength      | Path to gene length file. ( default: ./refs/gene_length.csv) |
