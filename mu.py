@@ -71,6 +71,8 @@ def main(args):
     mu_matrix_control['gene_length'] = gene_length
     mu_matrix_control['mu'] = expected_energy_control/(mu_matrix_control['sumEA']/mu_matrix_control['gene_length'])
     mu_matrix = pd.DataFrame(np.zeros((len(genes), 2)), index=genes, columns=['mu_case', 'mu_control'])
+    mu_matrix['mu_case'] = mu_matrix_case['mu'].copy()
+    mu_matrix['mu_control'] = mu_matrix_control['mu'].copy()
     mu_matrix.to_csv(args.savepath+'mu.tsv', sep='\t', header=True, index=True) 
     
     
