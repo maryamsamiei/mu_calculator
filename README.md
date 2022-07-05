@@ -13,7 +13,7 @@ Required arguments:
 | Argument                | Descripion |
 | ---------------------- |--------------------- |
 | --VCF                | Path to annotated VCF file |
-| --samples            |Path to one-column tab seperated (.txt, .tsv) file with sample IDs in the first column. There should be no header row|
+| --samples            |Path to two-column tab separated file (.tsv ot .txt) with sample IDs in the first column and patient labels (cases=1, controls=0) in the second column. There should be no header row|
 | --maxaf  | sets maximum allele frequency threshold, so mu will be calculated for variants with frequency less than this threshold |
 | --savepath           | Path for output file |
 | --cores              | number of cpus to use |
@@ -36,6 +36,8 @@ python mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.tsv --
 ```
 
 ## Output
-Output is a dataframe with gene names in the first column, gene length in the second column, sum EA in the third column, and mu in the fourth column. 
+1. Output "mu.tsv" is a dataframe with gene names in the first column, mu of the cases in the second column and mu of the controls in the third column.
+2. Output "distance_matrix.tsv" is a dataframe with gene names in the first column and distance (mu_control - mu_case) in the second column. The difference in mu for controls and cases for 1000 random shuffled labels are presented in column names "1" to "1000" and z-scores are presented in the last column.
+
 
 
