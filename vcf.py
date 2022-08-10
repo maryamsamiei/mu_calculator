@@ -4,6 +4,7 @@
 import pandas as pd 
 import numpy as np 
 from pysam import VariantFile
+import re
 
 
 def validate_EA(ea):
@@ -78,14 +79,19 @@ def parse_VEP(vcf_fn, gene, gene_ref, samples, max_af, min_af):
     vcf = VariantFile(vcf_fn)
     vcf.subset_samples(samples)
     dmatrix = pd.DataFrame(np.zeros((len(samples), 1)), index=samples, columns=[gene])
-    
+    for var in vcf:
+        if re.search(r'chr', var.chrom):
+            contig = 'chr'+str(gene_ref.chrom)
+        else:
+            contig = str(gene_ref.chrom)
+        break
     def _fetch_anno(anno):
         # for fields that could return either direct value or tuple depending on header
         if type(anno) == tuple:
             return anno[0]
         else:
             return anno
-    for rec in vcf.fetch(contig=str(gene_ref.chrom), start=gene_ref.start, stop=gene_ref.end):
+    for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
         all_ea = rec.info.get('EA', (None,))
         all_ensp = rec.info.get('Ensembl_proteinid', (rec.info['ENSP'][0],))
         canon_ensp = _fetch_anno(rec.info['ENSP'])
