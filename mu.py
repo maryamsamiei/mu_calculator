@@ -36,7 +36,7 @@ def main(args):
         elif args.ref=='hg38':
             ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh38.v94.txt', delimiter='\t', header=0, index_col='gene')
 
-    samples =pd.read_csv(args.samples, sep='\t', header=None,index_col=0)
+    samples =pd.read_csv(args.samples, header=None,index_col=0)
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
     cases = samples[samples.iloc[:,0]==1].index.astype(str).tolist()
     total_samples = samples.index.astype(str).tolist()
