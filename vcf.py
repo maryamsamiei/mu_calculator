@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import pandas as pd 
 import numpy as np 
-from pysam import VariantFile
+import pandas as pd 
+from pathlib import Path
+from pysam import VariantFile, VariantRecord
 import re
 
 
-def validate_EA(ea):
+def validate_EA(ea: float) -> float:
     """
     Checks for valid EA score
     Args:
@@ -18,7 +19,7 @@ def validate_EA(ea):
     try:
         ea = float(ea)
     except ValueError:
-        if type(ea) == str and (ea == 'fs-indel' or 'STOP' in ea):
+        if type(ea) == str and (ea == "fs-indel" or "STOP" in ea):
             ea = 100
         else:
             ea = np.nan
@@ -27,7 +28,7 @@ def validate_EA(ea):
     return ea
 
 
-def convert_zygo(genotype):
+def convert_zygo(genotype: tuple) -> int:
     """
     Convert a genotype tuple to a zygosity integer
     Args:
@@ -42,9 +43,22 @@ def convert_zygo(genotype):
     else:
         zygo = 0
     return zygo
+
 ### functions for VEP annottated vcf
-def fetch_EA_VEP(EA, canon_ensp, all_ensp, csq):
-    if 'stop_gained' in csq or 'frameshift_variant' in csq or 'stop_lost' in csq:# or 'splice_donor_variant' in csq or 'splice_acceptor_variant' in csq:
+def fetch_EA_VEP(
+        EA: tuple, 
+        canon_ensp: tuple, 
+        all_ensp: tuple, 
+        csq: tuple
+        ) -> float:
+    """
+    Return EA for VEP canonical transcript (ENSEMBL)
+    """
+
+    if "stop_gained" in csq or\
+       "frameshift_variant" in csq or\
+       "stop_lost" in csq:
+        # or "splice_donor_variant" in csq or "splice_acceptor_variant" in csq:
         return 100
     try:
         canon_idx = all_ensp.index(canon_ensp)
@@ -53,19 +67,22 @@ def fetch_EA_VEP(EA, canon_ensp, all_ensp, csq):
     else:
         return validate_EA(EA[canon_idx])
 
-def af_check(rec, max_af, min_af):
+def af_check(
+        rec: VariantRecord,
+        max_af: float,
+        min_af: float
+        ) -> bool:
     """
     Check if variant allele frequency passes filters
     Args:
         rec (VariantRecord)
-        af_field (str): Name of INFO field containing allele frequency information
         max_af (float): Maximum allele frequency for variant
         min_af (float): Minimum allele frequency for variant
     Returns:
         bool: True of AF passes filters, otherwise False
     """
 
-    af = rec.info['AF']
+    af = rec.info["AF"]
     if type(af) == tuple:
         af = af[0]
     try:
@@ -73,40 +90,66 @@ def af_check(rec, max_af, min_af):
     except:
         return False
 
+def parse_VEP(
+        vcf_fn: Path, 
+        gene: str, 
+        gene_ref: str, 
+        samples: list, 
+        min_af: float,
+        max_af: float
+        ) -> pd.DataFrame:
+    """
+    Parse EA scores and compute pEA design matrix for a given gene 
+    with custom VEP annotations
+    Args:
+        vcf_fn (Path-like): Filepath to VCF
+        gene (str): HGSC gene symbol
+        gene_ref (Series): Reference information for given gene's transcripts
+        samples (list): sample IDs
+        min_af (float): Minimum allele frequency for variants
+        max_af (float): Maximum allele frequency for variants
+    Returns:
+        DataFrame: sumEA design matrix
+    """
 
-def parse_VEP(vcf_fn, gene, gene_ref, samples, max_af, min_af):
-   
-    vcf = VariantFile(vcf_fn)
-    vcf.subset_samples(samples)
-    dmatrix = pd.DataFrame(np.zeros((len(samples), 1)), index=samples, columns=[gene])
-    for var in vcf:
-        if re.search(r'chr', var.chrom):
-            contig = 'chr'+str(gene_ref.chrom)
-        else:
-            contig = str(gene_ref.chrom)
-        break
     def _fetch_anno(anno):
-        # for fields that could return either direct value or tuple depending on header
+        # for fields that could return either direct value 
+        # or tuple depending on header
         if type(anno) == tuple:
             return anno[0]
         else:
             return anno
+   
+    vcf = VariantFile(vcf_fn)
+    vcf.subset_samples(samples)
+    dmatrix = pd.DataFrame(np.zeros((len(samples), 1)), index=samples, 
+                           columns=[gene])
+    for var in vcf:
+        if re.search(r"chr", var.chrom):
+            contig = "chr"+str(gene_ref.chrom)
+        else:
+            contig = str(gene_ref.chrom)
+        break
+
     for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
-        all_ea = rec.info.get('EA', (None,))
-        all_ensp = rec.info.get('Ensembl_proteinid', (rec.info['ENSP'][0],))
-        canon_ensp = _fetch_anno(rec.info['ENSP'])
-        csq = _fetch_anno(rec.info['Consequence'])
-        rec_gene = _fetch_anno(rec.info['SYMBOL'])
+        all_ea = rec.info.get("EA", (None,))
+        all_ensp = rec.info.get("Ensembl_proteinid", (rec.info["ENSP"][0],))
+        canon_ensp = _fetch_anno(rec.info["ENSP"])
+        csq = _fetch_anno(rec.info["Consequence"])
+        rec_gene = _fetch_anno(rec.info["SYMBOL"])
         ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
         pass_af_check = af_check(rec, max_af, min_af)
         if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
-            gts = pd.Series([convert_zygo(rec.samples[sample]['GT']) for sample in samples], index=samples, dtype=int)
+            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+                             for sample in samples], index=samples, dtype=int)
             dmatrix[gene] += ea*gts  
     return dmatrix   
-def split_genes(rec):
+
+def split_genes(rec: VariantRecord) -> VariantRecord:
     """
-    If a variant has overlapping gene annotations, it will be split into separate records with correct corresponding
-    transcripts, substitutions, and EA scores
+    If a variant has overlapping gene annotations, it will be split into 
+    separate records with correct corresponding transcripts, substitutions,
+    and EA scores
     Args:
         rec (VariantRecord)
     Yields:
@@ -114,29 +157,36 @@ def split_genes(rec):
     """
     def _gene_map(gene_idxs_dict, values):
         genes = gene_idxs_dict.keys()
-        if len(values) == len([i for gene_idxs in gene_idxs_dict.values() for i in gene_idxs]):
+        if len(values) == len([i for gene_idxs in gene_idxs_dict.values() \
+                               for i in gene_idxs]):
             val_d = {g: [values[i] for i in gene_idxs_dict[g]] for g in genes}
         elif len(values) == 1:
             val_d = {g: values for g in genes}
         else:
-            raise ValueError('Size of values list does not match expected case.')
+            raise ValueError("Size of values list does not match expected case.")
         return val_d
 
-    ea = rec.info['EA']
-    gene = rec.info['gene']
-    nm = rec.info['NM']
+    ea = rec.info["EA"]
+    gene = rec.info["gene"]
+    nm = rec.info["NM"]
     geneset = set(gene)
-    idxs = {genekey: [i for i, g in enumerate(gene) if g == genekey] for genekey in geneset}
+    idxs = { genekey: [i for i, g in enumerate(gene) if g == genekey] \
+            for genekey in geneset }
     ea_dict = _gene_map(idxs, ea)
     nm_dict = _gene_map(idxs, nm)
     for g in geneset:
         var = rec.copy()
-        var.info['gene'] = g
-        var.info['EA'] = tuple(ea_dict[g])
-        var.info['NM'] = tuple(nm_dict[g])
+        var.info["gene"] = g
+        var.info["EA"] = tuple(ea_dict[g])
+        var.info["NM"] = tuple(nm_dict[g])
         yield var
 
-def fetch_variants(vcf, contig=None, start=None, stop=None):
+def fetch_variants(
+        vcf: VariantFile,
+        contig: str = None, 
+        start: int = None,
+        stop: int = None
+        ) -> VariantRecord:
     """
     Variant iterator
     Args:
@@ -148,12 +198,19 @@ def fetch_variants(vcf, contig=None, start=None, stop=None):
         VariantRecord
     """
     for rec in vcf.fetch(contig=contig, start=start, stop=stop):
-        if type(rec.info['gene']) == tuple:  # check for overlapping gene annotations
+        # check for overlapping gene annotations
+        if type(rec.info["gene"]) == tuple:
             for var in split_genes(rec):
                 yield var
         else:
             yield rec
-def fetch_EA_ANNOVAR(EA, nm_ids, canon_nm, EA_parser='canonical'):
+
+def fetch_EA_ANNOVAR(
+        EA: tuple, 
+        nm_ids: tuple,
+        canon_nm: str, 
+        EA_parser: str = "canonical"
+        ) -> float:
     """
     Parse EA scores for a given variant
     Args:
@@ -165,29 +222,39 @@ def fetch_EA_ANNOVAR(EA, nm_ids, canon_nm, EA_parser='canonical'):
         float/list: Valid EA scores, refactored as floats
     Note: EA must be string type
     """
-    if EA_parser == 'canonical' and canon_nm in nm_ids:
+    if EA_parser == "canonical" and canon_nm in nm_ids:
         if len(EA) > 1:
             return validate_EA(EA[nm_ids.index(canon_nm)])
         else:
             return validate_EA(EA[0])
-    elif EA_parser != 'canonical':
+    elif EA_parser != "canonical":
         newEA = []
         for score in EA:
             newEA.append(validate_EA(score))
         if np.isnan(newEA).all():
             return np.nan
-        elif EA_parser == 'mean':
+        elif EA_parser == "mean":
             return np.nanmean(newEA)
-        elif EA_parser == 'max':
+        elif EA_parser == "max":
             return np.nanmax(newEA)
         else:
             return newEA
     else:
         return np.nan
         
-def parse_ANNOVAR(vcf_fn, gene, gene_ref, samples, min_af=None, max_af=None, af_field='AF', EA_parser='canonical'):
+def parse_ANNOVAR(
+        vcf_fn: Path, 
+        gene: str, 
+        gene_ref: pd.Series, 
+        samples: list,
+        min_af: float = None, 
+        max_af: float = None, 
+        af_field: str = "AF", 
+        EA_parser: str = "canonical"
+        ) -> pd.DataFrame:
     """
-    Parse EA scores and compute pEA design matrix for a given gene with custom ANNOVAR annotations
+    Parse EA scores and compute pEA design matrix for a given gene 
+    with custom ANNOVAR annotations
     Args:
         vcf_fn (Path-like): Filepath to VCF
         gene (str): HGSC gene symbol
@@ -203,12 +270,17 @@ def parse_ANNOVAR(vcf_fn, gene, gene_ref, samples, min_af=None, max_af=None, af_
 
     vcf = VariantFile(vcf_fn)
     vcf.subset_samples(samples)
-    dmatrix = pd.DataFrame(np.ones((len(samples), 1)), index=samples, columns=[gene])
-    for rec in fetch_variants(vcf, contig=str(gene_ref.chrom), start=gene_ref.start, stop=gene_ref.end):
-        ea = fetch_EA_ANNOVAR(rec.info['EA'], rec.info['NM'], gene_ref.canonical, EA_parser=EA_parser)
-        pass_af_check = af_check(rec, af_field=af_field, max_af=max_af, min_af=min_af)
-        if not np.isnan(ea).all() and gene == rec.info['gene'] and pass_af_check:
-            gts = pd.Series([convert_zygo(rec.samples[sample]['GT']) for sample in samples], index=samples, dtype=int)
+    dmatrix = pd.DataFrame(np.ones((len(samples), 1)), index=samples, 
+                           columns=[gene])
+    for rec in fetch_variants(vcf, contig=str(gene_ref.chrom), 
+                              start=gene_ref.start, stop=gene_ref.end):
+        ea = fetch_EA_ANNOVAR(rec.info["EA"], rec.info["NM"], 
+                              gene_ref.canonical, EA_parser=EA_parser)
+        pass_af_check = af_check(rec, af_field=af_field, 
+                                 min_af=min_af, max_af=max_af)
+        if not np.isnan(ea).all() and gene == rec.info["gene"] and pass_af_check:
+            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"])\
+                             for sample in samples], index=samples, dtype=int)
             dmatrix[gene] += ea*gts  
            
     return dmatrix 
