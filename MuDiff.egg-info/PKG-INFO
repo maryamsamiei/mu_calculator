@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: MuDiff
+Version: 0.1
+Summary: Repo for gene weight (mu) calculation
+Home-page: https://github.com/LichtargeLab/mu_calculator
+Author: Lichtarge Lab
+Author-email: 
+License: MIT

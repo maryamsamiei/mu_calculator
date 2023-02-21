@@ -1,0 +1,9 @@
+README.md
+setup.py
+MuDiff/__main__.py
+MuDiff/vcf.py
+MuDiff.egg-info/PKG-INFO
+MuDiff.egg-info/SOURCES.txt
+MuDiff.egg-info/dependency_links.txt
+MuDiff.egg-info/not-zip-safe
+MuDiff.egg-info/top_level.txt

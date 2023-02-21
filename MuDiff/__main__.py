@@ -23,10 +23,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Mu arguments")
     parser.add_argument("--VCF", nargs="?", default="./",
         help="Location of Cohort VCF")
-    parser.add_argument("--samples", nargs="?", default="./samples.txt",
+    parser.add_argument("--samples", nargs="?", default=path("samples.txt"),
         help="samples file path")
     parser.add_argument("--GeneLength", nargs="?", 
-        default=path("/refs/gene_length.csv"), 
+        default=path("refs/gene_length.csv"), 
         help="gene length file path")
     parser.add_argument("--ref", nargs="?", default="hg38", 
         choices=("hg19", "hg38"), help="genome reference file")
@@ -85,17 +85,17 @@ def compute_mu_diff(
 def main(args):
     if args.Ann=="ANNOVAR":
         if args.ref=="hg19":
-            ref = pd.read_csv(path("/refs/refGene-lite_hg19.May2013.txt"), 
+            ref = pd.read_csv(path("refs/refGene-lite_hg19.May2013.txt"), 
                               delimiter="\t", header=0, index_col="gene")
         elif args.ref=="hg38":
-            ref = pd.read_csv(path("/refs/refGene-lite_hg38.June2017.txt"), 
+            ref = pd.read_csv(path("refs/refGene-lite_hg38.June2017.txt"), 
                               delimiter="\t", header=0, index_col="gene")
     elif args.Ann=="VEP":
         if args.ref=="hg19":
-            ref = pd.read_csv(path("/refs/ENSEMBL-lite_GRCh37.v75.txt"), 
+            ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh37.v75.txt"), 
                               delimiter="\t", header=0, index_col="gene")
         elif args.ref=="hg38":
-            ref = pd.read_csv(path("/refs/ENSEMBL-lite_GRCh38.v94.txt"), 
+            ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.txt"), 
                               delimiter="\t", header=0, index_col="gene")
 
     samples =pd.read_csv(args.samples, header=None,index_col=0)
