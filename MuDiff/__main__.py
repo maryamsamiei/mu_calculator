@@ -83,6 +83,9 @@ def compute_mu_diff(
     return mu_case, mu_control
 
 def main(args):
+    # Create output directory if non existant
+    os.makedirs(args.savepath, exist_ok=True)
+
     if args.Ann=="ANNOVAR":
         if args.ref=="hg19":
             ref = pd.read_csv(path("refs/refGene-lite_hg19.May2013.txt"), 
