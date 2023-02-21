@@ -30,6 +30,8 @@ def parse_args():
         help="gene length file path")
     parser.add_argument("--ref", nargs="?", default="hg38", 
         choices=("hg19", "hg38"), help="genome reference file")
+    parser.add_argument("--noX", default=True, 
+        help="Do not run analysis on chromosome X")
     parser.add_argument("--savepath", nargs="?", default="./",
         help="save path for output")
     parser.add_argument("--maxaf", type=float,
@@ -98,8 +100,12 @@ def main(args):
             ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh37.v75.txt"), 
                               delimiter="\t", header=0, index_col="gene")
         elif args.ref=="hg38":
-            ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.txt"), 
-                              delimiter="\t", header=0, index_col="gene")
+            if args.noX:
+                ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.noX.txt"), 
+                                  delimiter="\t", header=0, index_col="gene")
+            else:
+                ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.txt"), 
+                                  delimiter="\t", header=0, index_col="gene")
 
     samples =pd.read_csv(args.samples, header=None,index_col=0)
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
