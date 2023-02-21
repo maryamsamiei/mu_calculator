@@ -27,7 +27,6 @@ def validate_EA(ea: float) -> float:
         ea = np.nan
     return ea
 
-
 def convert_zygo(genotype: tuple) -> int:
     """
     Convert a genotype tuple to a zygosity integer
@@ -69,15 +68,15 @@ def fetch_EA_VEP(
 
 def af_check(
         rec: VariantRecord,
-        max_af: float,
-        min_af: float
+        min_af: float,
+        max_af: float
         ) -> bool:
     """
     Check if variant allele frequency passes filters
     Args:
         rec (VariantRecord)
-        max_af (float): Maximum allele frequency for variant
         min_af (float): Minimum allele frequency for variant
+        max_af (float): Maximum allele frequency for variant
     Returns:
         bool: True of AF passes filters, otherwise False
     """
@@ -89,6 +88,14 @@ def af_check(
         return min_af < float(af) < max_af
     except:
         return False
+
+def _fetch_VEP_anno(anno):
+    # for fields that could return either direct value 
+    # or tuple depending on header
+    if type(anno) == tuple:
+        return anno[0]
+    else:
+        return anno
 
 def parse_VEP(
         vcf_fn: Path, 
@@ -111,14 +118,6 @@ def parse_VEP(
     Returns:
         DataFrame: sumEA design matrix
     """
-
-    def _fetch_anno(anno):
-        # for fields that could return either direct value 
-        # or tuple depending on header
-        if type(anno) == tuple:
-            return anno[0]
-        else:
-            return anno
    
     vcf = VariantFile(vcf_fn)
     vcf.subset_samples(samples)
@@ -134,16 +133,51 @@ def parse_VEP(
     for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
         all_ea = rec.info.get("EA", (None,))
         all_ensp = rec.info.get("Ensembl_proteinid", (rec.info["ENSP"][0],))
-        canon_ensp = _fetch_anno(rec.info["ENSP"])
-        csq = _fetch_anno(rec.info["Consequence"])
-        rec_gene = _fetch_anno(rec.info["SYMBOL"])
+        canon_ensp = _fetch_VEP_anno(rec.info["ENSP"])
+        csq = _fetch_VEP_anno(rec.info["Consequence"])
+        rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
         ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
-        pass_af_check = af_check(rec, max_af, min_af)
+        pass_af_check = af_check(rec, min_af, max_af)
         if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
             gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
                              for sample in samples], index=samples, dtype=int)
             dmatrix[gene] += ea*gts  
     return dmatrix   
+
+def parse_VEP_degenerate(
+        vcf_fn: Path, 
+        gene: str, 
+        gene_ref: str, 
+        samples: list, 
+        min_af: float,
+        max_af: float
+    ) -> pd.DataFrame:
+    vcf = VariantFile(vcf_fn)
+    vcf.subset_samples(samples)
+    dmatrix = []
+    for var in vcf:
+        if re.search(r"chr", var.chrom):
+            contig = "chr"+str(gene_ref.chrom)
+        else:
+            contig = str(gene_ref.chrom)
+        break
+
+    for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
+        all_ea = rec.info.get("EA", (None,))
+        all_ensp = rec.info.get("Ensembl_proteinid", (rec.info["ENSP"][0],))
+        canon_ensp = _fetch_VEP_anno(rec.info["ENSP"])
+        csq = _fetch_VEP_anno(rec.info["Consequence"])
+        rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
+        ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
+        pass_af_check = af_check(rec, min_af, max_af)
+        if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
+            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+                             for sample in samples], index=samples, dtype=int)
+            dmatrix.append([gene, rec.id, "EA", *[True if g > 0 else False \
+                                                  for g in gts ]])
+    dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
+    return dmatrix   
+
 
 def split_genes(rec: VariantRecord) -> VariantRecord:
     """
@@ -284,4 +318,3 @@ def parse_ANNOVAR(
             dmatrix[gene] += ea*gts  
            
     return dmatrix 
-

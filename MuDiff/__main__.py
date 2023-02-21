@@ -15,7 +15,6 @@ def path(relative_path: str) -> Path:
     """
     return Path(__file__).parent / relative_path
 
-
 def parse_args():
     """
     Parses the arguments.
@@ -30,7 +29,7 @@ def parse_args():
         help="gene length file path")
     parser.add_argument("--ref", nargs="?", default="hg38", 
         choices=("hg19", "hg38"), help="genome reference file")
-    parser.add_argument("--noX", default=True, 
+    parser.add_argument("--noX", default=False, action="store_true",
         help="Do not run analysis on chromosome X")
     parser.add_argument("--savepath", nargs="?", default="./",
         help="save path for output")
@@ -38,16 +37,36 @@ def parse_args():
         help="maximum allele frequency cutoff")
     parser.add_argument("--Ann",default="VEP", choices=("VEP", "ANNOVAR"),
         help="EA annotation method")
+    parser.add_argument("--degenerate",default=False, action="store_true",
+        help="Use number of variant sites (degenerate distribution)")
     parser.add_argument("--cores", type=int, default=1,
         help="number of CPUs to use for multiprocessing")
     return parser.parse_args()
 
+def _SumEA_degenerate(
+        design_matrix: pd.DataFrame, 
+        samples: list
+        ) -> pd.Series:
+    """
+    Return degenerate SumEA based on variants in samples for every gene
+    :design_matrix: variant matrix
+        index: variant column (variant id from pysam.VariantRecord)
+        columns: [ gene, variant, EA, *samples ]
+    """
+    # Only keep variants that appear at least once in samples
+    variants = design_matrix[*samples].any(axis=1)
+    sample_variants = variants[variants == True]
+    dmatrix_sample = design_matrix[["gene", "EA"]]\
+        .reindex(sample_variants.index)
+    return dmatrix_sample.groupby("gene").EA.sum()
 
 def compute_mu_diff(
         cases: list, 
         controls: list,
         gene_length: pd.DataFrame,
-        design_matrix: pd.DataFrame) -> tuple:
+        design_matrix: pd.DataFrame,
+        degenerate: bool
+        ) -> tuple:
     """
     Compute Mu-diff for a given set of cases and controls
     :cases: list of case ids
@@ -63,12 +82,17 @@ def compute_mu_diff(
     """
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
-    design_matrix_case = design_matrix.loc[cases, genes]
-    design_matrix_control = design_matrix.loc[controls, genes]
-    
-    # Compute SumEA associated to each gene for cases and controls
-    SumEA_genes_case = np.sum(design_matrix_case, axis=0)
-    SumEA_genes_control = np.sum(design_matrix_control, axis=0)
+    if degenerate:
+        SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)\
+            .reindex(genes)
+        SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
+            .reindex(genes)
+    else:
+        design_matrix_case = design_matrix.loc[cases, genes]
+        design_matrix_control = design_matrix.loc[controls, genes]
+        # Compute SumEA associated to each gene for cases and controls
+        SumEA_genes_case = np.sum(design_matrix_case, axis=0)
+        SumEA_genes_control = np.sum(design_matrix_control, axis=0)
 
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
@@ -118,20 +142,34 @@ def main(args):
             (args.VCF, gene, ref.loc[gene], total_samples, min_af=0,
              max_af=args.maxaf, af_field="AF", EA_parser="canonical")\
                 for gene in tqdm(ref.index.unique()))
+
     if args.Ann=="VEP":
-        matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
-            (args.VCF, gene, ref.loc[gene], total_samples, 
-             max_af=args.maxaf, min_af=0) for gene in tqdm(ref.index.unique()))
+        if args.degenerate:
+            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
+                (args.VCF, gene, ref.loc[gene], total_samples, 
+                 min_af=0, max_af=args.maxaf) \
+                    for gene in tqdm(ref.index.unique()))
+        else:
+            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
+                (args.VCF, gene, ref.loc[gene], total_samples, 
+                  min_af=0, max_af=args.maxaf) \
+                    for gene in tqdm(ref.index.unique()))
              
-    design_matrix = pd.concat(matrix, axis=1)
-        ## reading gene length file
+    if args.degenerate:
+        # row = variants; col = samples
+        design_matrix = pd.concat(matrix, axis=0)
+    else:
+        # row = samples; col = genes
+        design_matrix = pd.concat(matrix, axis=1)
+
+    ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
     genes = set(design_matrix.columns.tolist())\
         .intersection(set(gene_length.index.tolist()))
     gene_length = gene_length.loc[genes]
     
-    mu_case, mu_control = compute_mu_diff(cases, controls, 
-                                          gene_length, design_matrix)
+    mu_case, mu_control = compute_mu_diff(cases, controls, gene_length, 
+                                          design_matrix, args.degenerate)
 
     mu_matrix = pd.DataFrame(np.zeros((len(genes), 2)), index=genes, 
                              columns=["mu_case", "mu_control"])
@@ -149,7 +187,7 @@ def main(args):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
         mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
-                                              design_matrix)
+                                              design_matrix, args.degenerate)
         distance_matrix[str(i)] = mu_control - mu_case
   
     # distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
@@ -161,7 +199,6 @@ def main(args):
     distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
                            sep="\t", header=True, index=True)
     
-
 if __name__ == "__main__":
     args = parse_args()
     main(args)        
