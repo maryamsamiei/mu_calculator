@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument("--noX", default=False, action="store_true",
         help="Do not run analysis on chromosome X")
     parser.add_argument("--savepath", nargs="?", default="./",
-        eelp="save path for output")
+        help="save path for output")
     parser.add_argument("--maxaf", type=float,
         help="maximum allele frequency cutoff")
     parser.add_argument("--Ann",default="VEP", choices=("VEP", "ANNOVAR"),
