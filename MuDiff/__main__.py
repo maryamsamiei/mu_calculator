@@ -168,7 +168,6 @@ def main(args):
         design_matrix = pd.concat(matrix, axis=1)
 
     print("Dmatrix shape: ", design_matrix.shape)
-    design_matrix.to_csv("dmatrix.tsv", sep="\t")
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
