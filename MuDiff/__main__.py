@@ -94,6 +94,8 @@ def compute_mu_diff(
         SumEA_genes_case = np.sum(design_matrix_case, axis=0)
         SumEA_genes_control = np.sum(design_matrix_control, axis=0)
 
+    print(SumEA_genes_case)
+
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
                            np.sum(gene_length.gene_length)
@@ -163,6 +165,7 @@ def main(args):
         design_matrix = pd.concat(matrix, axis=1)
 
     print("Dmatrix shape: ", design_matrix.shape)
+    design_matrix.to_csv("dmatrix.tsv", sep="\t")
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
