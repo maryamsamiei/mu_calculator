@@ -173,9 +173,10 @@ def parse_VEP_degenerate(
         if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
             gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
                              for sample in samples], index=samples, dtype=int)
-            dmatrix.append([gene, rec.id, "EA", *[True if g > 0 else False \
-                                                  for g in gts ]])
+            dmatrix.append([gene, rec.id, ea, *[True if g > 0 else False \
+                                                for g in gts ]])
     dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
+    dmatrix.to_csv("./dmatrix.tsv", sep="\t")
     return dmatrix   
 
 
