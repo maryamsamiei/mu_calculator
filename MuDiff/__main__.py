@@ -187,12 +187,12 @@ def main(args):
     distance_matrix["distance"] = mu_control - mu_case
     
     print("Performing randomization")
-    for i in tqdm(range(1000)):
-        cases1 = random.sample(total_samples, len(cases))
-        controls1 = list(set(total_samples) - set(cases1))
-        mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
-                                              design_matrix, args.degenerate)
-        distance_matrix[str(i)] = mu_control - mu_case
+    # for i in tqdm(range(1000)):
+    #     cases1 = random.sample(total_samples, len(cases))
+    #     controls1 = list(set(total_samples) - set(cases1))
+    #     mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
+    #                                           design_matrix, args.degenerate)
+    #     distance_matrix[str(i)] = mu_control - mu_case
   
     # distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
     #                        sep="\t", header=True, index=True) 
