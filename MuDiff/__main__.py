@@ -163,15 +163,17 @@ def main(args):
     if args.degenerate:
         # row = variants; col = samples
         design_matrix = pd.concat(matrix, axis=0)
+        matrix_genes = design_matrix.gene.unique().tolist()
     else:
         # row = samples; col = genes
         design_matrix = pd.concat(matrix, axis=1)
+        matrix_genes = design_matrix.columns.tolist()
 
     print("Dmatrix shape: ", design_matrix.shape)
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
-    genes = set(design_matrix.columns.tolist())\
+    genes = set(matrix_genes)\
         .intersection(set(gene_length.index.tolist()))
     gene_length = gene_length.loc[genes]
     
