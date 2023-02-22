@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument("--noX", default=False, action="store_true",
         help="Do not run analysis on chromosome X")
     parser.add_argument("--savepath", nargs="?", default="./",
-        help="save path for output")
+        eelp="save path for output")
     parser.add_argument("--maxaf", type=float,
         help="maximum allele frequency cutoff")
     parser.add_argument("--Ann",default="VEP", choices=("VEP", "ANNOVAR"),
@@ -82,9 +82,12 @@ def compute_mu_diff(
     """
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
+    print(len(genes))
     if degenerate:
-        SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)\
-            .reindex(genes)
+        SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)
+        print(SumEA_genes_case)
+        SumEA_genes_case.reindex(genes, inplace=True)
+        print(SumEA_genes_case)
         SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
             .reindex(genes)
     else:
