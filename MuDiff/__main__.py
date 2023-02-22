@@ -178,12 +178,14 @@ def main(args):
     mu_matrix.to_csv(os.path.join(args.savepath, "mu.tsv"), sep="\t", 
                      header=True, index=True) 
     
+    print(mu_matrix)
     
     distance_matrix = pd.DataFrame(np.zeros((len(genes), 1)), index=genes, 
                                    columns=["distance"])
     distance_matrix["distance"] = mu_control - mu_case
     
-    for i in range(1000):
+    print("Performing randomization")
+    for i in tqdm(range(1000)):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
         mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
