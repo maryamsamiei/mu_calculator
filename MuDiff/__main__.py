@@ -82,12 +82,9 @@ def compute_mu_diff(
     """
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
-    print(len(genes))
     if degenerate:
         SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)
-        print(SumEA_genes_case)
         SumEA_genes_case = SumEA_genes_case.reindex(genes)
-        print(SumEA_genes_case)
         SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
             .reindex(genes)
     else:
@@ -96,8 +93,6 @@ def compute_mu_diff(
         # Compute SumEA associated to each gene for cases and controls
         SumEA_genes_case = np.sum(design_matrix_case, axis=0)
         SumEA_genes_control = np.sum(design_matrix_control, axis=0)
-
-    print(SumEA_genes_case)
 
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
@@ -169,8 +164,6 @@ def main(args):
         design_matrix = pd.concat(matrix, axis=1)
         matrix_genes = design_matrix.columns.tolist()
 
-    print("Dmatrix shape: ", design_matrix.shape)
-
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
     genes = set(matrix_genes)\
@@ -187,19 +180,17 @@ def main(args):
     mu_matrix.to_csv(os.path.join(args.savepath, "mu.tsv"), sep="\t", 
                      header=True, index=True) 
     
-    print(mu_matrix)
-    
     distance_matrix = pd.DataFrame(np.zeros((len(genes), 1)), index=genes, 
                                    columns=["distance"])
     distance_matrix["distance"] = mu_control - mu_case
     
     print("Performing randomization")
-    # for i in tqdm(range(1000)):
-    #     cases1 = random.sample(total_samples, len(cases))
-    #     controls1 = list(set(total_samples) - set(cases1))
-    #     mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
-    #                                           design_matrix, args.degenerate)
-    #     distance_matrix[str(i)] = mu_control - mu_case
+    for i in tqdm(range(1000)):
+        cases1 = random.sample(total_samples, len(cases))
+        controls1 = list(set(total_samples) - set(cases1))
+        mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
+                                              design_matrix, args.degenerate)
+        distance_matrix[str(i)] = mu_control - mu_case
   
     # distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
     #                        sep="\t", header=True, index=True) 
