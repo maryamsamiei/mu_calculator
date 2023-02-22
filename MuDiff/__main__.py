@@ -86,7 +86,7 @@ def compute_mu_diff(
     if degenerate:
         SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)
         print(SumEA_genes_case)
-        SumEA_genes_case.reindex(genes, inplace=True)
+        SumEA_genes_case = SumEA_genes_case.reindex(genes)
         print(SumEA_genes_case)
         SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
             .reindex(genes)
