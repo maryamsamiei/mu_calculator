@@ -96,14 +96,14 @@ def compute_mu_diff(
 
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
-                           np.sum(gene_length["gene_length"])
-    observed_energy_case = SumEA_genes_case / gene_length["gene_length"]
+                           np.sum(gene_length.gene_length)
+    observed_energy_case = SumEA_genes_case / gene_length.gene_length
     mu_case = expected_energy_case / observed_energy_case
     
     # Compute Mu in controls
     expected_energy_control = np.sum(SumEA_genes_control) / \
-                              np.sum(gene_length["gene_length"])
-    observed_energy_control = SumEA_genes_control / gene_length["gene_length"]
+                              np.sum(gene_length.gene_length)
+    observed_energy_control = SumEA_genes_control / gene_length.gene_length
     mu_control = expected_energy_control / observed_energy_control
 
     return mu_case, mu_control
@@ -131,7 +131,7 @@ def main(args):
                 ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.txt"), 
                                   delimiter="\t", header=0, index_col="gene")
 
-    samples =pd.read_csv(args.samples, header=None,index_col=0)
+    samples = pd.read_csv(args.samples, header=None,index_col=0)
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
     cases = samples[samples.iloc[:,0]==1].index.astype(str).tolist()
     total_samples = samples.index.astype(str).tolist()
@@ -161,6 +161,8 @@ def main(args):
     else:
         # row = samples; col = genes
         design_matrix = pd.concat(matrix, axis=1)
+
+    print("Dmatrix shape: ", design_matrix.shape)
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
