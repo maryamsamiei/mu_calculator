@@ -54,7 +54,7 @@ def _SumEA_degenerate(
         columns: [ gene, variant, EA, *samples ]
     """
     # Only keep variants that appear at least once in samples
-    variants = design_matrix[samples].any(axis=1)
+    variants = design_matrix[samples].any(axis=1, bool_only=True)
     sample_variants = variants[variants == True]
     dmatrix_sample = design_matrix[["gene", "EA"]]\
         .reindex(sample_variants.index)
