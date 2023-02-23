@@ -214,7 +214,7 @@ def main(args: argparse.Namespace) -> None:
     
     mu_case, mu_control = compute_mu_diff(cases, 
                                           controls, 
-                                          samples,
+                                          total_samples,
                                           gene_length,
                                           design_matrix, 
                                           ea_matrix,
@@ -239,7 +239,7 @@ def main(args: argparse.Namespace) -> None:
 
         mu_case, mu_control = compute_mu_diff(cases, 
                                               controls, 
-                                              samples,
+                                              total_samples,
                                               gene_length,
                                               design_matrix, 
                                               ea_matrix,
