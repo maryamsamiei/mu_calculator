@@ -85,8 +85,8 @@ def compute_mu_diff(
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
     if degenerate:
-        SumEA_genes_case = compute_dmatrix(ref, cases, args)[genes].T
-        SumEA_genes_control = compute_dmatrix(ref, controls, args)[genes].T
+        SumEA_genes_case = compute_dmatrix(ref, cases, args)[genes].T[0]
+        SumEA_genes_control = compute_dmatrix(ref, controls, args)[genes].T[0]
         print(SumEA_genes_case)
         # SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
         #     .reindex(genes)
@@ -108,6 +108,9 @@ def compute_mu_diff(
                               np.sum(gene_length.gene_length)
     observed_energy_control = SumEA_genes_control / gene_length.gene_length
     mu_control = expected_energy_control / observed_energy_control
+
+    print(mu_case)
+    print(mu_control)
 
     return mu_case, mu_control
 
