@@ -233,8 +233,8 @@ def main(args: argparse.Namespace) -> None:
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
 
-        mu_case, mu_control = compute_mu_diff(cases, 
-                                              controls, 
+        mu_case, mu_control = compute_mu_diff(cases1, 
+                                              controls1, 
                                               total_samples,
                                               gene_length,
                                               design_matrix, 
