@@ -132,7 +132,7 @@ def compute_dmatrix(
         ref: pd.DataFrame,
         samples: list, 
         args: argparse.Namespace
-        ) -> pd.DataFrame | tuple:
+        ) -> (pd.DataFrame | tuple):
     # Build SumEA matrix (sample in rows, genes in columns)
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
