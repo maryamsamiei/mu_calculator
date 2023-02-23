@@ -131,9 +131,8 @@ def compute_mu_diff(
 def compute_dmatrix(
         ref: pd.DataFrame,
         samples: list, 
-        args):
-    print(type(args))
-    print(ref)
+        args: argparse.Namespace
+        ) -> pd.DataFrame | tuple:
     # Build SumEA matrix (sample in rows, genes in columns)
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
@@ -143,11 +142,11 @@ def compute_dmatrix(
 
     if args.Ann=="VEP":
         if args.degenerate:
-            ea_matrix, gt_matrix = Parallel(n_jobs=args.cores)\
-                (delayed(parse_VEP_degenerate)\
+            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
                 (args.VCF, gene, ref.loc[gene], samples, 
                  min_af=0, max_af=args.maxaf) \
                     for gene in tqdm(ref.index.unique()))
+            ea_matrix, gt_matrix = list(zip(*matrix))
             return pd.concat(ea_matrix, axis=1), sp.vstack(gt_matrix)
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
@@ -156,7 +155,7 @@ def compute_dmatrix(
                     for gene in tqdm(ref.index.unique()))
     return pd.concat(matrix, axis=1)
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     # Create output directory if non existant
     os.makedirs(args.savepath, exist_ok=True)
 
