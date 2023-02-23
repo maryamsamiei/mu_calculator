@@ -102,7 +102,6 @@ def compute_mu_diff(
         SumEA_genes_control = _SumEA_degenerate(controls, samples, 
                                                 ea_matrix, gt_matrix)\
                                                 .reindex(genes)
-        print(SumEA_genes_case)
     else:
         design_matrix_case = design_matrix.loc[cases, genes]
         design_matrix_control = design_matrix.loc[controls, genes]
@@ -121,9 +120,6 @@ def compute_mu_diff(
                               np.sum(gene_length.gene_length)
     observed_energy_control = SumEA_genes_control / gene_length.gene_length
     mu_control = expected_energy_control / observed_energy_control
-
-    print(mu_case)
-    print(mu_control)
 
     return mu_case, mu_control
 
@@ -154,7 +150,7 @@ def compute_dmatrix(
             ea_matrix = [ m for m in ea_matrix if m is not None ]
             gt_matrix = [ m for m in gt_matrix if m is not None ]
             assert len(ea_matrix) == len(gt_matrix), "EA and GT matrix mismatch"
-            ea_matrix = pd.concat(ea_matrix, axis=0)
+            ea_matrix = pd.concat(ea_matrix, axis=0, ignore_index=True)
             gt_matrix = sp.vstack(gt_matrix, format="csc", dtype=np.int8)
             print("EA matrix shape", ea_matrix.shape)
             print("GT matrix shape", gt_matrix.get_shape())
@@ -203,8 +199,6 @@ def main(args: argparse.Namespace) -> None:
     design_matrix, ea_matrix, gt_matrix = None, None, None
     if args.degenerate:
         ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
-        print(ea_matrix)
-        print(gt_matrix)
         matrix_genes = ea_matrix.gene.unique().tolist()
     else:
         design_matrix = compute_dmatrix(ref, total_samples, args)
