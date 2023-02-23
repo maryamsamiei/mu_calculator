@@ -66,8 +66,8 @@ def compute_mu_diff(
         gene_length: pd.DataFrame,
         design_matrix: pd.DataFrame,
         degenerate: bool,
-        ref, 
-        args,
+        ref: pd.DataFrame, 
+        args: argparse.ArgumentParser,
         ) -> tuple:
     """
     Compute Mu-diff for a given set of cases and controls
@@ -176,7 +176,8 @@ def main(args):
     gene_length = gene_length.loc[genes]
     
     mu_case, mu_control = compute_mu_diff(cases, controls, gene_length, 
-                                          design_matrix, args.degenerate)
+                                          design_matrix, args.degenerate,
+                                          ref, args)
 
     mu_matrix = pd.DataFrame(np.zeros((len(genes), 2)), index=genes, 
                              columns=["mu_case", "mu_control"])
@@ -190,12 +191,13 @@ def main(args):
     distance_matrix["distance"] = mu_control - mu_case
     
     print("Performing randomization")
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(10)):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
 
         mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
-                                              design_matrix, args.degenerate)
+                                              design_matrix, args.degenerate,
+                                              ref, args)
         distance_matrix[str(i)] = mu_control - mu_case
   
     # distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
