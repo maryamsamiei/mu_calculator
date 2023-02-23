@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 import scipy.sparse as sp
 from tqdm import tqdm
+from typing import Union, Tuple
 from .vcf import *
 
 
@@ -132,7 +133,7 @@ def compute_dmatrix(
         ref: pd.DataFrame,
         samples: list, 
         args: argparse.Namespace
-        ) -> (pd.DataFrame | tuple):
+        ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, sp.csc_matrix]]:
     # Build SumEA matrix (sample in rows, genes in columns)
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
