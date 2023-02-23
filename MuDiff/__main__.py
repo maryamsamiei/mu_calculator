@@ -5,7 +5,7 @@ import os
 import pandas as pd 
 from pathlib import Path
 import random
-from scipy.sparse import csc_array
+from scipy.sparse import csc_matrix
 from tqdm import tqdm
 from .vcf import *
 
@@ -48,7 +48,7 @@ def _SumEA_degenerate(
         samples: list,
         total_samples: list,
         ea_matrix: pd.DataFrame, 
-        gt_matrix: csc_array, 
+        gt_matrix: csc_matrix, 
         ) -> pd.Series:
     """
     Return degenerate SumEA based on variants in samples for every gene
@@ -59,8 +59,8 @@ def _SumEA_degenerate(
     # Only keep variants that appear at least once in samples
     samples = set(samples)
     sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
-    variants = gt_matrix * sample_vector
-    sample_variants = variants.sum(axis=1) > 0
+    variant_matrix = gt_matrix.multiply(sample_vector)
+    sample_variants = variant_matrix.sum(axis=1).A1 > 0
     dmatrix_sample = ea_matrix[["gene", "EA"]].loc[sample_variants]
     return dmatrix_sample.groupby("gene").EA.sum()
 
@@ -71,7 +71,7 @@ def compute_mu_diff(
         gene_length: pd.DataFrame,
         design_matrix: pd.DataFrame,
         ea_matrix: pd.DataFrame,
-        gt_matrix: csc_array,
+        gt_matrix: csc_matrix,
         degenerate: bool,
         ) -> tuple:
     """
@@ -86,7 +86,7 @@ def compute_mu_diff(
         - rows are samples
         - columns are genes
     :ea_matrix: Pandas DataFrame containing EA per gene variant
-    :gt_matrix: Scipy.sparse csc_array containing genotype per sample
+    :gt_matrix: Scipy.sparse csc_matrix containing genotype per sample
         - rows are variants
         - columns are samples
 
