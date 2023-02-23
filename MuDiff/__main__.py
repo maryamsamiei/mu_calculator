@@ -109,6 +109,7 @@ def compute_mu_diff(
         SumEA_genes_case = np.sum(design_matrix_case, axis=0)
         SumEA_genes_control = np.sum(design_matrix_control, axis=0)
 
+    print(SumEA_genes_case)
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
                            np.sum(gene_length.gene_length)
@@ -190,12 +191,6 @@ def main(args: argparse.Namespace) -> None:
     cases = samples[samples.iloc[:,0]==1].index.astype(str).tolist()
     total_samples = samples.index.astype(str).tolist()
              
-    # if args.degenerate:
-    #     # row = variants; col = samples
-    #     design_matrix = pd.concat(matrix, axis=0)
-    #     matrix_genes = design_matrix.gene.unique().tolist()
-    # else:
-    #     # row = samples; col = genes
     design_matrix, ea_matrix, gt_matrix = None, None, None
     if args.degenerate:
         ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
