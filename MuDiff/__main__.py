@@ -154,6 +154,10 @@ def compute_dmatrix(
             assert len(ea_matrix) == len(gt_matrix), "EA and GT matrix mismatch"
             ea_matrix = pd.concat(ea_matrix, axis=0, ignore_index=True)
             gt_matrix = sp.vstack(gt_matrix, format="csc", dtype=np.int8)
+            ea_n = ea_matrix.shape[0]
+            gt_n = gt_matrix.get_shape[0]
+            assert ea_n == gt_n,\
+                "EA and GT matrix mismatch number of variants {ea_n} != {gt_n}"
             return ea_matrix, gt_matrix
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
