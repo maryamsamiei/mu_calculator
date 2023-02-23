@@ -154,7 +154,8 @@ def parse_VEP_degenerate(
     ) -> pd.DataFrame:
     vcf = VariantFile(vcf_fn)
     vcf.subset_samples(samples)
-    dmatrix = []
+    # dmatrix = []
+    dmatrix = pd.DataFrame(np.zeros((1, 1)), columns=[gene])
     for var in vcf:
         if re.search(r"chr", var.chrom):
             contig = "chr"+str(gene_ref.chrom)
@@ -171,12 +172,16 @@ def parse_VEP_degenerate(
         ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
         pass_af_check = af_check(rec, min_af, max_af)
         if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
-            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
-                             for sample in samples], index=samples, dtype=int)
-            dmatrix.append([gene, rec.id, ea, *[True if g > 0 else False \
-                                                for g in gts ]])
-    dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
-    dmatrix.set_index("variant", drop=True, inplace=True)
+            sample_variant = next((convert_zygo(rec.samples[sample]["GT"]) > 0 \
+                             for sample in samples), False)
+            if sample_variant:
+                dmatrix[gene] += ea
+            # gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+            #                  for sample in samples], index=samples, dtype=int)
+            # dmatrix.append([gene, rec.id, ea, *[True if g > 0 else False \
+            #                                     for g in gts ]])
+    # dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
+    # dmatrix.set_index("variant", drop=True, inplace=True)
     return dmatrix   
 
 

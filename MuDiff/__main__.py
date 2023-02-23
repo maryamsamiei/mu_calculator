@@ -65,7 +65,9 @@ def compute_mu_diff(
         controls: list,
         gene_length: pd.DataFrame,
         design_matrix: pd.DataFrame,
-        degenerate: bool
+        degenerate: bool,
+        ref, 
+        args,
         ) -> tuple:
     """
     Compute Mu-diff for a given set of cases and controls
@@ -83,10 +85,11 @@ def compute_mu_diff(
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
     if degenerate:
-        SumEA_genes_case = _SumEA_degenerate(design_matrix, cases)
-        SumEA_genes_case = SumEA_genes_case.reindex(genes)
-        SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
-            .reindex(genes)
+        SumEA_genes_case = compute_dmatrix(ref, cases, args)[genes].T
+        SumEA_genes_control = compute_dmatrix(ref, controls, args)[genes].T
+        print(SumEA_genes_case)
+        # SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
+        #     .reindex(genes)
     else:
         design_matrix_case = design_matrix.loc[cases, genes]
         design_matrix_control = design_matrix.loc[controls, genes]
@@ -107,6 +110,27 @@ def compute_mu_diff(
     mu_control = expected_energy_control / observed_energy_control
 
     return mu_case, mu_control
+
+def compute_dmatrix(ref, samples, args):
+    # Build SumEA matrix (sample in rows, genes in columns)
+    if args.Ann=="ANNOVAR":
+        matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
+            (args.VCF, gene, ref.loc[gene], samples, min_af=0,
+             max_af=args.maxaf, af_field="AF", EA_parser="canonical")\
+                for gene in tqdm(ref.index.unique()))
+
+    if args.Ann=="VEP":
+        if args.degenerate:
+            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
+                (args.VCF, gene, ref.loc[gene], samples, 
+                 min_af=0, max_af=args.maxaf) \
+                    for gene in tqdm(ref.index.unique()))
+        else:
+            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
+                (args.VCF, gene, ref.loc[gene], samples, 
+                  min_af=0, max_af=args.maxaf) \
+                    for gene in tqdm(ref.index.unique()))
+    return pd.concat(matrix, axis=1)
 
 def main(args):
     # Create output directory if non existant
@@ -135,34 +159,15 @@ def main(args):
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
     cases = samples[samples.iloc[:,0]==1].index.astype(str).tolist()
     total_samples = samples.index.astype(str).tolist()
-
-    # Build SumEA matrix (sample in rows, genes in columns)
-    if args.Ann=="ANNOVAR":
-        matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
-            (args.VCF, gene, ref.loc[gene], total_samples, min_af=0,
-             max_af=args.maxaf, af_field="AF", EA_parser="canonical")\
-                for gene in tqdm(ref.index.unique()))
-
-    if args.Ann=="VEP":
-        if args.degenerate:
-            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
-                (args.VCF, gene, ref.loc[gene], total_samples, 
-                 min_af=0, max_af=args.maxaf) \
-                    for gene in tqdm(ref.index.unique()))
-        else:
-            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
-                (args.VCF, gene, ref.loc[gene], total_samples, 
-                  min_af=0, max_af=args.maxaf) \
-                    for gene in tqdm(ref.index.unique()))
              
-    if args.degenerate:
-        # row = variants; col = samples
-        design_matrix = pd.concat(matrix, axis=0)
-        matrix_genes = design_matrix.gene.unique().tolist()
-    else:
-        # row = samples; col = genes
-        design_matrix = pd.concat(matrix, axis=1)
-        matrix_genes = design_matrix.columns.tolist()
+    # if args.degenerate:
+    #     # row = variants; col = samples
+    #     design_matrix = pd.concat(matrix, axis=0)
+    #     matrix_genes = design_matrix.gene.unique().tolist()
+    # else:
+    #     # row = samples; col = genes
+    design_matrix = compute_dmatrix(ref, total_samples, args)
+    matrix_genes = design_matrix.columns.tolist()
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
@@ -188,6 +193,7 @@ def main(args):
     for i in tqdm(range(1000)):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
+
         mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
                                               design_matrix, args.degenerate)
         distance_matrix[str(i)] = mu_control - mu_case
