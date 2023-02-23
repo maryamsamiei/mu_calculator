@@ -5,6 +5,7 @@ import os
 import pandas as pd 
 from pathlib import Path
 import random
+from scipy.sparse import csc_array
 from tqdm import tqdm
 from .vcf import *
 
@@ -44,8 +45,10 @@ def parse_args():
     return parser.parse_args()
 
 def _SumEA_degenerate(
-        design_matrix: pd.DataFrame, 
-        samples: list
+        samples: list,
+        total_samples: list,
+        ea_matrix: pd.DataFrame, 
+        gt_matrix: csc_array, 
         ) -> pd.Series:
     """
     Return degenerate SumEA based on variants in samples for every gene
@@ -54,42 +57,51 @@ def _SumEA_degenerate(
         columns: [ gene, variant, EA, *samples ]
     """
     # Only keep variants that appear at least once in samples
-    variants = design_matrix[samples].any(axis=1, bool_only=True)
-    sample_variants = variants[variants == True]
-    dmatrix_sample = design_matrix[["gene", "EA"]]\
-        .reindex(sample_variants.index)
+    samples = set(samples)
+    sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
+    variants = gt_matrix * sample_vector
+    sample_variants = variants.sum(axis=1) > 0
+    dmatrix_sample = ea_matrix[["gene", "EA"]].loc[sample_variants]
     return dmatrix_sample.groupby("gene").EA.sum()
 
 def compute_mu_diff(
         cases: list, 
         controls: list,
+        samples: list,
         gene_length: pd.DataFrame,
         design_matrix: pd.DataFrame,
+        ea_matrix: pd.DataFrame,
+        gt_matrix: csc_array,
         degenerate: bool,
-        ref: pd.DataFrame, 
-        args: argparse.ArgumentParser,
         ) -> tuple:
     """
     Compute Mu-diff for a given set of cases and controls
     :cases: list of case ids
     :controls: list of control ids
+    :samples: list of sample ids
     :gene_length: Pandas DataFrame containing gene length
         :index: gene name (only those used for analysis)
         :gene_length: int
     :design_matrix: Pandas DataFrame containing SumEA per gene per sample
         - rows are samples
         - columns are genes
+    :ea_matrix: Pandas DataFrame containing EA per gene variant
+    :gt_matrix: Scipy.sparse csc_array containing genotype per sample
+        - rows are variants
+        - columns are samples
 
     :return: tuple containing pd.Series for mu-cases and mu-controls
     """
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
     if degenerate:
-        SumEA_genes_case = compute_dmatrix(ref, cases, args)[genes].T[0]
-        SumEA_genes_control = compute_dmatrix(ref, controls, args)[genes].T[0]
+        SumEA_genes_case = _SumEA_degenerate(cases, samples, 
+                                             ea_matrix, gt_matrix)\
+                                            .reindex(genes)
+        SumEA_genes_control = _SumEA_degenerate(controls, samples, 
+                                                ea_matrix, gt_matrix)\
+                                                .reindex(genes)
         print(SumEA_genes_case)
-        # SumEA_genes_control = _SumEA_degenerate(design_matrix, controls)\
-        #     .reindex(genes)
     else:
         design_matrix_case = design_matrix.loc[cases, genes]
         design_matrix_control = design_matrix.loc[controls, genes]
@@ -113,6 +125,8 @@ def compute_mu_diff(
     print(mu_control)
 
     return mu_case, mu_control
+
+
 
 def compute_dmatrix(ref, samples, args):
     # Build SumEA matrix (sample in rows, genes in columns)
@@ -169,8 +183,13 @@ def main(args):
     #     matrix_genes = design_matrix.gene.unique().tolist()
     # else:
     #     # row = samples; col = genes
-    design_matrix = compute_dmatrix(ref, total_samples, args)
-    matrix_genes = design_matrix.columns.tolist()
+    design_matrix, ea_matrix, gt_matrix = None, None, None
+    if args.degenerate:
+        ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
+        matrix_genes = ea_matrix.gene.unique().tolist()
+    else:
+        design_matrix = compute_dmatrix(ref, total_samples, args)
+        matrix_genes = design_matrix.columns.tolist()
 
     ## reading gene length file
     gene_length = pd.read_csv(args.GeneLength, index_col=0)
@@ -178,9 +197,14 @@ def main(args):
         .intersection(set(gene_length.index.tolist()))
     gene_length = gene_length.loc[genes]
     
-    mu_case, mu_control = compute_mu_diff(cases, controls, gene_length, 
-                                          design_matrix, args.degenerate,
-                                          ref, args)
+    mu_case, mu_control = compute_mu_diff(cases, 
+                                          controls, 
+                                          samples,
+                                          gene_length,
+                                          design_matrix, 
+                                          ea_matrix,
+                                          gt_matrix,
+                                          args)
 
     mu_matrix = pd.DataFrame(np.zeros((len(genes), 2)), index=genes, 
                              columns=["mu_case", "mu_control"])
@@ -198,9 +222,15 @@ def main(args):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
 
-        mu_case, mu_control = compute_mu_diff(cases1, controls1, gene_length,
-                                              design_matrix, args.degenerate,
-                                              ref, args)
+        mu_case, mu_control = compute_mu_diff(cases, 
+                                              controls, 
+                                              samples,
+                                              gene_length,
+                                              design_matrix, 
+                                              ea_matrix,
+                                              gt_matrix,
+                                              args)
+
         distance_matrix[str(i)] = mu_control - mu_case
   
     # distance_matrix.to_csv(os.path.join(args.savepath, "distance_matrix.tsv"), 
