@@ -229,7 +229,7 @@ def main(args: argparse.Namespace) -> None:
     distance_matrix["distance"] = mu_control - mu_case
     
     print("Performing randomization")
-    for i in tqdm(range(10)):
+    for i in tqdm(range(1000)):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
 
