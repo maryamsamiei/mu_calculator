@@ -183,8 +183,12 @@ def parse_VEP_degenerate(
             #                                     for g in gts ]])
     # dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
     # dmatrix.set_index("variant", drop=True, inplace=True)
+
+    # Avoid error when concatenating matrices
+    if len(ea_matrix) == 0 and len(gt_matrix) == 0:
+        return None, None
+
     ea_matrix = pd.DataFrame(ea_matrix)
-    print(gt_matrix)
     gt_matrix = sp.csc_matrix(gt_matrix, shape=(len(ea_matrix), len(samples)),
                               dtype=np.int8)
     return ea_matrix, gt_matrix   
