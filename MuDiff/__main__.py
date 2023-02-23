@@ -60,6 +60,8 @@ def _SumEA_degenerate(
     :return: degenerate sumEA for each gene
     """
     # Only keep variants that appear at least once in samples
+    print(samples)
+    print(total_samples)
     samples = set(samples)
     sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
     print(sample_vector)
