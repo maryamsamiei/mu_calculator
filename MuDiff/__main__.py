@@ -53,17 +53,22 @@ def _SumEA_degenerate(
         ) -> pd.Series:
     """
     Return degenerate SumEA based on variants in samples for every gene
-    :design_matrix: variant matrix
-        index: variant column (variant id from pysam.VariantRecord)
-        columns: [ gene, variant, EA, *samples ]
+    :gt_matrix: sample genotype variant-level matrix
+        rows: variants
+        columns: samples
+        values: genotype
+    :return: degenerate sumEA for each gene
     """
     # Only keep variants that appear at least once in samples
     samples = set(samples)
     sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
+    print(sample_vector)
     variant_matrix = gt_matrix.multiply(sample_vector)
     sample_variants = variant_matrix.sum(axis=1, dtype=np.int8).A1 > 0
     dmatrix_sample = ea_matrix[["gene", "EA"]].loc[sample_variants]
-    return dmatrix_sample.groupby("gene").EA.sum()
+    out = dmatrix_sample.groupby("gene").EA.sum()
+    print(out)
+    return out
 
 def compute_mu_diff(
         cases: list, 
@@ -101,7 +106,7 @@ def compute_mu_diff(
                                             .reindex(genes)
         SumEA_genes_control = _SumEA_degenerate(controls, samples, 
                                                 ea_matrix, gt_matrix)\
-                                                .reindex(genes)
+                                            .reindex(genes)
     else:
         design_matrix_case = design_matrix.loc[cases, genes]
         design_matrix_control = design_matrix.loc[controls, genes]
