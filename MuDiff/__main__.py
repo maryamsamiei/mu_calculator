@@ -128,7 +128,12 @@ def compute_mu_diff(
 
 
 
-def compute_dmatrix(ref, samples, args):
+def compute_dmatrix(
+        ref: pd.DataFrame,
+        samples: list, 
+        args):
+    print(type(args))
+    print(ref)
     # Build SumEA matrix (sample in rows, genes in columns)
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
