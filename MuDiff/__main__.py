@@ -151,8 +151,8 @@ def compute_dmatrix(
                  min_af=0, max_af=args.maxaf) \
                     for gene in tqdm(ref.index.unique()))
             ea_matrix, gt_matrix = list(zip(*matrix))
-            ea_matrix = [ m for m in ea_matrix if m != None ]
-            gt_matrix = [ m for m in gt_matrix if m != None ]
+            ea_matrix = [ m for m in ea_matrix if m is not None ]
+            gt_matrix = [ m for m in gt_matrix if m is not None ]
             assert len(ea_matrix) == len(gt_matrix), "EA and GT matrix mismatch"
             ea_matrix = pd.concat(ea_matrix, axis=1)
             gt_matrix = sp.vstack(gt_matrix, format="csc", dtype=np.int8)
