@@ -127,13 +127,16 @@ def compute_mu_diff(
 
     return mu_case, mu_control
 
-
-
 def compute_dmatrix(
         ref: pd.DataFrame,
         samples: list, 
         args: argparse.Namespace
         ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, sp.csc_matrix]]:
+    """
+    Returns matrices needed for Mu computation
+    - For non-degenerate, it returns a matrix where samples are rows, 
+      genes are columns and values are 
+    """
     # Build SumEA matrix (sample in rows, genes in columns)
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
@@ -148,6 +151,8 @@ def compute_dmatrix(
                  min_af=0, max_af=args.maxaf) \
                     for gene in tqdm(ref.index.unique()))
             ea_matrix, gt_matrix = list(zip(*matrix))
+            print(ea_matrix)
+            print(gt_matrix)
             return pd.concat(ea_matrix, axis=1), sp.vstack(gt_matrix)
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
