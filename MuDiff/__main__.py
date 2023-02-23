@@ -60,17 +60,12 @@ def _SumEA_degenerate(
     :return: degenerate sumEA for each gene
     """
     # Only keep variants that appear at least once in samples
-    print(samples)
-    print(total_samples)
     samples = set(samples)
     sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
-    print(sample_vector)
     variant_matrix = gt_matrix.multiply(sample_vector)
     sample_variants = variant_matrix.sum(axis=1, dtype=np.int8).A1 > 0
     dmatrix_sample = ea_matrix[["gene", "EA"]].loc[sample_variants]
-    out = dmatrix_sample.groupby("gene").EA.sum()
-    print(out)
-    return out
+    return dmatrix_sample.groupby("gene").EA.sum()
 
 def compute_mu_diff(
         cases: list, 
@@ -116,7 +111,6 @@ def compute_mu_diff(
         SumEA_genes_case = np.sum(design_matrix_case, axis=0)
         SumEA_genes_control = np.sum(design_matrix_control, axis=0)
 
-    print(SumEA_genes_case)
     # Compute Mu in cases
     expected_energy_case = np.sum(SumEA_genes_case) / \
                            np.sum(gene_length.gene_length)
@@ -160,8 +154,6 @@ def compute_dmatrix(
             assert len(ea_matrix) == len(gt_matrix), "EA and GT matrix mismatch"
             ea_matrix = pd.concat(ea_matrix, axis=0, ignore_index=True)
             gt_matrix = sp.vstack(gt_matrix, format="csc", dtype=np.int8)
-            print("EA matrix shape", ea_matrix.shape)
-            print("GT matrix shape", gt_matrix.get_shape())
             return ea_matrix, gt_matrix
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
