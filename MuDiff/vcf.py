@@ -184,6 +184,7 @@ def parse_VEP_degenerate(
     # dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
     # dmatrix.set_index("variant", drop=True, inplace=True)
     ea_matrix = pd.DataFrame(ea_matrix)
+    print(gt_matrix)
     gt_matrix = sp.csc_matrix(gt_matrix, shape=(len(ea_matrix), len(samples)),
                               dtype=np.int8)
     return ea_matrix, gt_matrix   
