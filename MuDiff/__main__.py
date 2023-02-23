@@ -60,7 +60,7 @@ def _SumEA_degenerate(
     samples = set(samples)
     sample_vector = np.array([1 if s in samples else 0 for s in total_samples])
     variant_matrix = gt_matrix.multiply(sample_vector)
-    sample_variants = variant_matrix.sum(axis=1).A1 > 0
+    sample_variants = variant_matrix.sum(axis=1, dtype=np.int8).A1 > 0
     dmatrix_sample = ea_matrix[["gene", "EA"]].loc[sample_variants]
     return dmatrix_sample.groupby("gene").EA.sum()
 
