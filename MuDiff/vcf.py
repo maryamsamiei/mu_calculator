@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 from pysam import VariantFile, VariantRecord
 import re
-from scipy.sparse import csc_matrix
+import scipy.sparse as sp
 
 
 def validate_EA(ea: float) -> float:
@@ -184,7 +184,7 @@ def parse_VEP_degenerate(
     # dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
     # dmatrix.set_index("variant", drop=True, inplace=True)
     ea_matrix = pd.DataFrame(ea_matrix)
-    gt_matrix = csc_matrix(gt_matrix, dtype=np.int8)
+    gt_matrix = sp.csc_matrix(gt_matrix, dtype=np.int8)
     return ea_matrix, gt_matrix   
 
 def split_genes(rec: VariantRecord) -> VariantRecord:

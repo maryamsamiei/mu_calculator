@@ -5,7 +5,7 @@ import os
 import pandas as pd 
 from pathlib import Path
 import random
-from scipy.sparse import csc_matrix
+import scipy.sparse as sp
 from tqdm import tqdm
 from .vcf import *
 
@@ -48,7 +48,7 @@ def _SumEA_degenerate(
         samples: list,
         total_samples: list,
         ea_matrix: pd.DataFrame, 
-        gt_matrix: csc_matrix, 
+        gt_matrix: sp.csc_matrix, 
         ) -> pd.Series:
     """
     Return degenerate SumEA based on variants in samples for every gene
@@ -71,7 +71,7 @@ def compute_mu_diff(
         gene_length: pd.DataFrame,
         design_matrix: pd.DataFrame,
         ea_matrix: pd.DataFrame,
-        gt_matrix: csc_matrix,
+        gt_matrix: sp.csc_matrix,
         degenerate: bool,
         ) -> tuple:
     """
@@ -138,10 +138,12 @@ def compute_dmatrix(ref, samples, args):
 
     if args.Ann=="VEP":
         if args.degenerate:
-            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
+            ea_matrix, gt_matrix = Parallel(n_jobs=args.cores)\
+                (delayed(parse_VEP_degenerate)\
                 (args.VCF, gene, ref.loc[gene], samples, 
                  min_af=0, max_af=args.maxaf) \
                     for gene in tqdm(ref.index.unique()))
+            return pd.concat(ea_matrix, axis=1), sp.vstack(gt_matrix)
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
                 (args.VCF, gene, ref.loc[gene], samples, 
@@ -186,6 +188,8 @@ def main(args):
     design_matrix, ea_matrix, gt_matrix = None, None, None
     if args.degenerate:
         ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
+        print(ea_matrix)
+        print(gt_matrix)
         matrix_genes = ea_matrix.gene.unique().tolist()
     else:
         design_matrix = compute_dmatrix(ref, total_samples, args)
