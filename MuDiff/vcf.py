@@ -188,9 +188,8 @@ def parse_VEP_degenerate(
     if len(ea_matrix) == 0 and len(gt_matrix) == 0:
         return None, None
 
-    ea_matrix = pd.DataFrame(ea_matrix)
-    gt_matrix = sp.csc_matrix(gt_matrix, shape=(len(ea_matrix), len(samples)),
-                              dtype=np.int8)
+    ea_matrix = pd.DataFrame(ea_matrix, columns=["gene", "variant", "EA"])
+    gt_matrix = sp.csc_matrix(gt_matrix, dtype=np.int8)
     return ea_matrix, gt_matrix   
 
 def split_genes(rec: VariantRecord) -> VariantRecord:

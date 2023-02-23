@@ -154,8 +154,10 @@ def compute_dmatrix(
             ea_matrix = [ m for m in ea_matrix if m is not None ]
             gt_matrix = [ m for m in gt_matrix if m is not None ]
             assert len(ea_matrix) == len(gt_matrix), "EA and GT matrix mismatch"
-            ea_matrix = pd.concat(ea_matrix, axis=1)
+            ea_matrix = pd.concat(ea_matrix, axis=0)
+            print("EA matrix shape", ea_matrix.shape)
             gt_matrix = sp.vstack(gt_matrix, format="csc", dtype=np.int8)
+            print("GT matrix shape", ea_matrix.get_shape())
             return ea_matrix, gt_matrix
         else:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
