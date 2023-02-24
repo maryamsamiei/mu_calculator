@@ -3,9 +3,10 @@ Repo for gene weight (mu) calculation
 
 ## Installation
 You can either use BigPipeline environment or follow these steps:
-1. git clone https://github.com/LichtargeLab/mu_calculator.git
-2. conda env create -f ./mu_calculator/environment.yml
-3. conda activate pyMu
+1. Clone repo `git clone https://github.com/LichtargeLab/mu_calculator.git`
+2. Create conda environment `conda env create -f ./mu_calculator/environment.yml`
+3. Activate conda environment `conda activate pyMu`
+4. Install package `pip install -e mu_calculator`
 
 
 ## Usage
@@ -29,10 +30,7 @@ Optional arguments:
 
 ## Command line example
 ```bash
-#set your working directory to mu_calculator
-cd ./mu_calculator
-#run mu.py
-python mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.csv --savepath save/directory/ --cores 20 --maxaf 0.01
+python -m MuDiff --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.csv --savepath save/directory/ --cores 20 --maxaf 0.01
 ```
 
 ## Output
