@@ -7,6 +7,7 @@ from pathlib import Path
 from pysam import VariantFile, VariantRecord
 import re
 import scipy.sparse as sp
+from typing import Tuple
 
 
 def validate_EA(ea: float) -> float:
@@ -98,6 +99,54 @@ def _fetch_VEP_anno(anno):
     else:
         return anno
 
+def parse_VEP_silent(
+        vcf_fn: Path, 
+        gene: str, 
+        gene_ref: str, 
+        samples: list, 
+        min_af: float,
+        max_af: float
+        ) -> pd.DataFrame:
+    """
+    Parse EA scores and compute pEA design matrix for a given gene 
+    with custom VEP annotations
+    Args:
+        vcf_fn (Path-like): Filepath to VCF
+        gene (str): HGSC gene symbol
+        gene_ref (Series): Reference information for given gene's transcripts
+        samples (list): sample IDs
+        min_af (float): Minimum allele frequency for variants
+        max_af (float): Maximum allele frequency for variants
+    Returns:
+        DataFrame: sumEA design matrix
+    """
+   
+    vcf = VariantFile(vcf_fn)
+    vcf.subset_samples(samples)
+    dmatrix = pd.DataFrame(np.zeros((len(samples), 1)), index=samples, 
+                           columns=[gene])
+    for var in vcf:
+        if re.search(r"chr", var.chrom):
+            contig = "chr"+str(gene_ref.chrom)
+        else:
+            contig = str(gene_ref.chrom)
+        break
+
+    for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
+        all_ea = rec.info.get("EA", (None,))
+        all_ensp = rec.info.get("Ensembl_proteinid", (rec.info["ENSP"][0],))
+        canon_ensp = _fetch_VEP_anno(rec.info["ENSP"])
+        csq = _fetch_VEP_anno(rec.info["Consequence"])
+        rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
+        print(rec.info)
+        ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
+        pass_af_check = af_check(rec, min_af, max_af)
+        if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
+            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+                             for sample in samples], index=samples, dtype=int)
+            dmatrix[gene] += ea*gts  
+    return dmatrix   
+
 def parse_VEP(
         vcf_fn: Path, 
         gene: str, 
@@ -148,15 +197,30 @@ def parse_VEP(
 def parse_VEP_degenerate(
         vcf_fn: Path, 
         gene: str, 
-        gene_ref: str, 
+        gene_ref: pd.Series, 
         samples: list, 
         min_af: float,
         max_af: float
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, sp.csc_matrix]: 
+    """
+    Parse EA scores and compute pEA design matrix for a given gene 
+    with custom VEP annotations
+    ### Parameters
+        - vcf_fn (Path-like): Filepath to VCF
+        - gene (str): HGSC gene symbol
+        - gene_ref (Series): Reference information for given gene's transcripts
+        - samples (list): sample IDs
+        - min_af (float): Minimum allele frequency for variants
+        - max_af (float): Maximum allele frequency for variants
+    ---
+    ### Return
+        DataFrame: sumEA design matrix
+    """
+
     vcf = VariantFile(vcf_fn)
     vcf.subset_samples(samples)
     ea_matrix, gt_matrix = [], []
-    # dmatrix = pd.DataFrame(np.zeros((1, 1)), columns=[gene])
+
     for var in vcf:
         if re.search(r"chr", var.chrom):
             contig = "chr"+str(gene_ref.chrom)
@@ -177,12 +241,6 @@ def parse_VEP_degenerate(
             gts = [convert_zygo(rec.samples[sample]["GT"]) \
                    for sample in samples]
             gt_matrix.append(gts)
-            # gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
-            #                  for sample in samples], index=samples, dtype=int)
-            # dmatrix.append([gene, rec.id, ea, *[True if g > 0 else False \
-            #                                     for g in gts ]])
-    # dmatrix = pd.DataFrame(dmatrix, columns=["gene", "variant", "EA", *samples])
-    # dmatrix.set_index("variant", drop=True, inplace=True)
 
     # Avoid error when concatenating matrices
     if len(ea_matrix) == 0 and len(gt_matrix) == 0:
@@ -197,9 +255,10 @@ def split_genes(rec: VariantRecord) -> VariantRecord:
     If a variant has overlapping gene annotations, it will be split into 
     separate records with correct corresponding transcripts, substitutions,
     and EA scores
-    Args:
+    ### Parameters
         rec (VariantRecord)
-    Yields:
+    ---
+    ### Return
         VariantRecord
     """
     def _gene_map(gene_idxs_dict, values):

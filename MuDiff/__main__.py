@@ -17,7 +17,7 @@ def path(relative_path: str) -> Path:
     """
     return Path(__file__).parent / relative_path
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """
     Parses the arguments.
     """
@@ -53,11 +53,16 @@ def _SumEA_degenerate(
         ) -> pd.Series:
     """
     Return degenerate SumEA based on variants in samples for every gene
-    :gt_matrix: sample genotype variant-level matrix
-        rows: variants
-        columns: samples
-        values: genotype
-    :return: degenerate sumEA for each gene
+    ### Parameters
+    - samples: list of sample ids onto which perform analysis
+    - total_samples: list of all sample ids
+    - ea_matrix: Pandas DataFrame containing EA per gene variant
+    - gt_matrix: Scipy.sparse csc_matrix containing genotype per sample
+        - rows are variants
+        - columns are samples
+    ---
+    ### Return
+    Degenerate sumEA for each gene
     """
     # Only keep variants that appear at least once in samples
     samples = set(samples)
@@ -76,24 +81,26 @@ def compute_mu_diff(
         ea_matrix: pd.DataFrame,
         gt_matrix: sp.csc_matrix,
         degenerate: bool,
-        ) -> tuple:
+        ) -> Tuple[pd.Series, pd.Series]:
     """
     Compute Mu-diff for a given set of cases and controls
-    :cases: list of case ids
-    :controls: list of control ids
-    :samples: list of sample ids
-    :gene_length: Pandas DataFrame containing gene length
-        :index: gene name (only those used for analysis)
-        :gene_length: int
-    :design_matrix: Pandas DataFrame containing SumEA per gene per sample
+    ### Parameters
+    - cases : list of case ids
+    - controls: list of control ids
+    - samples: list of sample ids
+    - gene_length: Pandas DataFrame containing gene length
+        - index: gene name (only those used for analysis)
+        - gene_length: int
+    - design_matrix: Pandas DataFrame containing pEA per gene per sample
         - rows are samples
         - columns are genes
-    :ea_matrix: Pandas DataFrame containing EA per gene variant
-    :gt_matrix: Scipy.sparse csc_matrix containing genotype per sample
+    - ea_matrix: Pandas DataFrame containing EA per gene variant
+    - gt_matrix: Scipy.sparse csc_matrix containing genotype per sample
         - rows are variants
         - columns are samples
-
-    :return: tuple containing pd.Series for mu-cases and mu-controls
+    ----
+    ### Return
+    Tuple containing pd.Series for mu-cases and mu-controls
     """
     # Subset sumEA matrix to genes and samples of study (cases and controls)
     genes = gene_length.index.to_list()
@@ -132,22 +139,32 @@ def compute_dmatrix(
         ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, sp.csc_matrix]]:
     """
     Returns matrices needed for Mu computation
-    - For non-degenerate, it returns a matrix where samples are rows, 
-      genes are columns and values are 
+        - For non-degenerate, it returns matrix containing pEA scores 
+          for each gene in each sample
+            rows: samples
+            columns: genes
+        - For degenerate, it returns two matrices:
+            - ea_matrix: variant (rows) EA scores and associated genes
+                rows: variants
+                columns: gene, variant (VariantRecord.id), EA
+            - gt_matrix: genotype for each sample for each studied variant
+                rows: variants
+                columns: samples
     """
     # Build SumEA matrix (sample in rows, genes in columns)
+    tqdm_desc = "EA matrix"
     if args.Ann=="ANNOVAR":
         matrix = Parallel(n_jobs=args.cores)(delayed(parse_ANNOVAR)\
             (args.VCF, gene, ref.loc[gene], samples, min_af=0,
              max_af=args.maxaf, af_field="AF", EA_parser="canonical")\
-                for gene in tqdm(ref.index.unique()))
+                for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
 
     if args.Ann=="VEP":
         if args.degenerate:
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_degenerate)\
                 (args.VCF, gene, ref.loc[gene], samples, 
                  min_af=0, max_af=args.maxaf) \
-                    for gene in tqdm(ref.index.unique()))
+                    for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
             ea_matrix, gt_matrix = list(zip(*matrix))
             ea_matrix = [ m for m in ea_matrix if m is not None ]
             gt_matrix = [ m for m in gt_matrix if m is not None ]
@@ -163,10 +180,14 @@ def compute_dmatrix(
             matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
                 (args.VCF, gene, ref.loc[gene], samples, 
                   min_af=0, max_af=args.maxaf) \
-                    for gene in tqdm(ref.index.unique()))
+                    for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
     return pd.concat(matrix, axis=1)
 
 def main(args: argparse.Namespace) -> None:
+    """
+    Run mu-diff analysis given CLI arguments
+    """
+
     # Create output directory if non existant
     os.makedirs(args.savepath, exist_ok=True)
 
@@ -228,8 +249,7 @@ def main(args: argparse.Namespace) -> None:
                                    columns=["distance"])
     distance_matrix["distance"] = mu_control - mu_case
     
-    print("Performing randomization")
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(1000), desc="Randomization"):
         cases1 = random.sample(total_samples, len(cases))
         controls1 = list(set(total_samples) - set(cases1))
 
@@ -255,4 +275,4 @@ def main(args: argparse.Namespace) -> None:
     
 if __name__ == "__main__":
     args = parse_args()
-    main(args)        
+    main(args)
