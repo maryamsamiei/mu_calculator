@@ -29,6 +29,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--GeneLength", nargs="?", 
         default=path("refs/gene_length.csv"), 
         help="gene length file path")
+    parser.add_argument("--GeneExons", nargs="?", 
+        default=path("refs/gene_exons.tsv"), 
+        help="gene number of exons file path")
     parser.add_argument("--ref", nargs="?", default="hg38", 
         choices=("hg19", "hg38"), help="genome reference file")
     parser.add_argument("--noX", default=False, action="store_true",
@@ -39,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         help="maximum allele frequency cutoff")
     parser.add_argument("--Ann",default="VEP", choices=("VEP", "ANNOVAR"),
         help="EA annotation method")
+    parser.add_argument("--method", type=str, default="EA",
+        choices=("EA", "spliceAI", "EA-spliceAI", "synonymous"),
+        help="number of CPUs to use for multiprocessing")
+    parser.add_argument("--spliceAI_thres", type=float, default=0.5,
+        help="SpliceAI threshold")
     parser.add_argument("--degenerate",default=False, action="store_true",
         help="Use number of variant sites (degenerate distribution)")
     parser.add_argument("--cores", type=int, default=1,
@@ -177,10 +185,26 @@ def compute_dmatrix(
                 "EA and GT matrix mismatch number of variants {ea_n} != {gt_n}"
             return ea_matrix, gt_matrix
         else:
-            matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
-                (args.VCF, gene, ref.loc[gene], samples, 
-                  min_af=0, max_af=args.maxaf) \
-                    for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
+            tqdm_desc = f"{args.method} matrix"
+            if args.method in ("EA", "EA-spliceAI"):
+                spliceAI = args.method == "EA-spliceAI"
+                print(args.method, spliceAI, args.spliceAI_thres)
+                matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP)\
+                    (args.VCF, gene, ref.loc[gene], samples, 
+                    min_af=0, max_af=args.maxaf, include_spliceAI=spliceAI,
+                    spliceAI_thres=args.spliceAI_thres) \
+                        for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
+            elif args.method == "spliceAI":
+                matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_spliceAI)\
+                    (args.VCF, gene, ref.loc[gene], samples, 
+                    min_af=0, max_af=args.maxaf,
+                    spliceAI_thres=args.spliceAI_thres) \
+                        for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
+            elif args.method == "synonymous":
+                matrix = Parallel(n_jobs=args.cores)(delayed(parse_VEP_synonymous)\
+                    (args.VCF, gene, ref.loc[gene], samples, 
+                    min_af=0, max_af=args.maxaf) \
+                        for gene in tqdm(ref.index.unique(), desc=tqdm_desc))
     return pd.concat(matrix, axis=1)
 
 def main(args: argparse.Namespace) -> None:
@@ -191,18 +215,18 @@ def main(args: argparse.Namespace) -> None:
     # Create output directory if non existant
     os.makedirs(args.savepath, exist_ok=True)
 
-    if args.Ann=="ANNOVAR":
-        if args.ref=="hg19":
+    if args.Ann == "ANNOVAR":
+        if args.ref == "hg19":
             ref = pd.read_csv(path("refs/refGene-lite_hg19.May2013.txt"), 
                               delimiter="\t", header=0, index_col="gene")
-        elif args.ref=="hg38":
+        elif args.ref == "hg38":
             ref = pd.read_csv(path("refs/refGene-lite_hg38.June2017.txt"), 
                               delimiter="\t", header=0, index_col="gene")
-    elif args.Ann=="VEP":
-        if args.ref=="hg19":
+    elif args.Ann == "VEP":
+        if args.ref == "hg19":
             ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh37.v75.txt"), 
                               delimiter="\t", header=0, index_col="gene")
-        elif args.ref=="hg38":
+        elif args.ref == "hg38":
             if args.noX:
                 ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.noX.txt"), 
                                   delimiter="\t", header=0, index_col="gene")
@@ -210,21 +234,36 @@ def main(args: argparse.Namespace) -> None:
                 ref = pd.read_csv(path("refs/ENSEMBL-lite_GRCh38.v94.txt"), 
                                   delimiter="\t", header=0, index_col="gene")
 
-    samples = pd.read_csv(args.samples, header=None,index_col=0)
+
+    # ref = pd.read_csv("anln.txt", delimiter="\t", header=0, index_col="gene")
+
+    samples = pd.read_csv(args.samples, header=None, index_col=0, sep="\t")
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
     cases = samples[samples.iloc[:,0]==1].index.astype(str).tolist()
     total_samples = samples.index.astype(str).tolist()
-             
+
     design_matrix, ea_matrix, gt_matrix = None, None, None
-    if args.degenerate:
-        ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
-        matrix_genes = ea_matrix.gene.unique().tolist()
-    else:
-        design_matrix = compute_dmatrix(ref, total_samples, args)
+    design_matrix_path = os.path.join(args.savepath, "design_matrix.tsv")
+    try:
+        design_matrix = pd.read_csv(design_matrix_path, sep="\t", index_col=0)
+        design_matrix.index = design_matrix.index.astype(str)
         matrix_genes = design_matrix.columns.tolist()
+    except:
+        if args.degenerate:
+            ea_matrix, gt_matrix = compute_dmatrix(ref, total_samples, args)
+            matrix_genes = ea_matrix.gene.unique().tolist()
+        else:
+            design_matrix = compute_dmatrix(ref, total_samples, args)
+            matrix_genes = design_matrix.columns.tolist()
+
+        design_matrix.to_csv(design_matrix_path, sep="\t")
 
     ## reading gene length file
-    gene_length = pd.read_csv(args.GeneLength, index_col=0)
+    if args.method == "spliceAI":
+        gene_length = pd.read_csv(args.GeneExons, index_col=0, sep="\t")
+    else:
+        gene_length = pd.read_csv(args.GeneLength, index_col=0)
+
     genes = set(matrix_genes)\
         .intersection(set(gene_length.index.tolist()))
     gene_length = gene_length.loc[genes]
@@ -236,7 +275,7 @@ def main(args: argparse.Namespace) -> None:
                                           design_matrix, 
                                           ea_matrix,
                                           gt_matrix,
-                                          args)
+                                          args.degenerate)
 
     mu_matrix = pd.DataFrame(np.zeros((len(genes), 2)), index=genes, 
                              columns=["mu_case", "mu_control"])
@@ -260,7 +299,7 @@ def main(args: argparse.Namespace) -> None:
                                               design_matrix, 
                                               ea_matrix,
                                               gt_matrix,
-                                              args)
+                                              args.degenerate)
 
         distance_matrix[str(i)] = mu_control - mu_case
   

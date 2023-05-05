@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from collections import namedtuple
 import numpy as np 
 import pandas as pd 
 from pathlib import Path
 from pysam import VariantFile, VariantRecord
 import re
 import scipy.sparse as sp
-from typing import Tuple
+from typing import Tuple, NamedTuple
+
+SpliceAI = namedtuple("SpliceAI",
+    "DP_AG DP_AL DP_DG DP_GL DS_AG DS_AL DS_DG DS_DL SYMBOL")
 
 
 def validate_EA(ea: float) -> float:
@@ -55,11 +59,12 @@ def fetch_EA_VEP(
     """
     Return EA for VEP canonical transcript (ENSEMBL)
     """
-
     if "stop_gained" in csq or\
        "frameshift_variant" in csq or\
        "stop_lost" in csq:
-        # or "splice_donor_variant" in csq or "splice_acceptor_variant" in csq:
+        return 100
+    elif "splice_donor_variant" in csq or "splice_acceptor_variant" in csq:# \
+         #or "splice_region_variant" in csq:
         return 100
     try:
         canon_idx = all_ensp.index(canon_ensp)
@@ -99,13 +104,88 @@ def _fetch_VEP_anno(anno):
     else:
         return anno
 
-def parse_VEP_silent(
+def validate_spliceAI(args):
+    scores = [ float(s) if s else np.nan for s in args[:8] ]
+    return SpliceAI(*scores, args[8])
+
+def fetch_VEP_spliceAI(csq, canon_ensp):
+    """
+    Return consequence data associated to canonical transcript
+    """
+    def get_ensp(c):
+        ensp = c.split("|")[ensp_idx]
+        return ensp
+    ensp_idx = 7
+    spliceAI_idx = 10
+    csq_canonical = next((c for c in csq if get_ensp(c) == canon_ensp), None)
+    if csq_canonical:
+        csq_canonical = csq_canonical.split("|")
+        spliceAI = validate_spliceAI(csq_canonical[spliceAI_idx:spliceAI_idx+9])
+        return spliceAI
+    else:
+        return None
+            
+def parse_VEP_synonymous(
         vcf_fn: Path, 
         gene: str, 
         gene_ref: str, 
         samples: list, 
         min_af: float,
-        max_af: float
+        max_af: float,
+        ) -> pd.DataFrame:
+    """
+    Parse EA scores and compute pEA design matrix for a given gene 
+    with custom VEP annotations
+    Args:
+        vcf_fn (Path-like): Filepath to VCF
+        gene (str): HGSC gene symbol
+        gene_ref (Series): Reference information for given gene's transcripts
+        samples (list): sample IDs
+        min_af (float): Minimum allele frequency for variants
+        max_af (float): Maximum allele frequency for variants
+    Returns:
+        DataFrame: sumEA design matrix
+    """
+   
+    vcf = VariantFile(vcf_fn)
+    vcf.subset_samples(samples)
+    dmatrix = pd.DataFrame(np.zeros((len(samples), 1)), index=samples, 
+                           columns=[gene])
+    for var in vcf:
+        if re.search(r"chr", var.chrom):
+            contig = "chr"+str(gene_ref.chrom)
+        else:
+            contig = str(gene_ref.chrom)
+        break
+
+    spliceAI_thres = 0.5
+
+    for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
+        canon_ensp = _fetch_VEP_anno(rec.info["ENSP"])
+        csq = _fetch_VEP_anno(rec.info["Consequence"])
+        rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
+        spliceAI = fetch_VEP_spliceAI(rec.info["CSQ"], canon_ensp)
+
+        pass_af_check = af_check(rec, min_af, max_af)
+        if pass_af_check and gene == rec_gene and "synonymous_variant" in csq \
+             and (
+             spliceAI.DS_AG < spliceAI_thres and \
+             spliceAI.DS_AL < spliceAI_thres and \
+             spliceAI.DS_DG < spliceAI_thres and \
+             spliceAI.DS_DL < spliceAI_thres):
+            gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+                             for sample in samples], index=samples, dtype=int)
+            dmatrix[gene] += 100*gts  
+    return dmatrix
+
+def parse_VEP_spliceAI(
+        vcf_fn: Path, 
+        gene: str, 
+        gene_ref: str, 
+        samples: list, 
+        min_af: float,
+        max_af: float,
+        spliceAI_thres: float = 0.5,
         ) -> pd.DataFrame:
     """
     Parse EA scores and compute pEA design matrix for a given gene 
@@ -133,19 +213,30 @@ def parse_VEP_silent(
         break
 
     for rec in vcf.fetch(contig=contig, start=gene_ref.start, stop=gene_ref.end):
-        all_ea = rec.info.get("EA", (None,))
-        all_ensp = rec.info.get("Ensembl_proteinid", (rec.info["ENSP"][0],))
         canon_ensp = _fetch_VEP_anno(rec.info["ENSP"])
         csq = _fetch_VEP_anno(rec.info["Consequence"])
         rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
-        print(rec.info)
-        ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
+        spliceAI = fetch_VEP_spliceAI(rec.info["CSQ"], canon_ensp)
+
         pass_af_check = af_check(rec, min_af, max_af)
-        if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
+        if pass_af_check and gene == rec_gene and "stop_gained" not in csq and \
+            spliceAI is not None and (
+            spliceAI.DS_AG >= spliceAI_thres or \
+            spliceAI.DS_AL >= spliceAI_thres or \
+            spliceAI.DS_DG >= spliceAI_thres or \
+            spliceAI.DS_DL >= spliceAI_thres):
             gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
                              for sample in samples], index=samples, dtype=int)
-            dmatrix[gene] += ea*gts  
-    return dmatrix   
+            # print(csq, rec_gene, spliceAI, sum(gts), rec.info["AF"], 
+            #       rec.pos, rec.ref, rec.alts,
+            #       rec.info["AC_0"],
+            #       rec.info["AC_1"],
+            #       rec.info["EXON"],
+            #       canon_ensp, rec.info["Ensembl_proteinid"],
+            #       rec.info.get("EA", (None,))
+            #       ,_fetch_VEP_anno(rec.info["Consequence"]))
+            dmatrix[gene] += gts  
+    return dmatrix
 
 def parse_VEP(
         vcf_fn: Path, 
@@ -153,7 +244,9 @@ def parse_VEP(
         gene_ref: str, 
         samples: list, 
         min_af: float,
-        max_af: float
+        max_af: float,
+        include_spliceAI: bool = True,
+        spliceAI_thres: float = 0.5,
         ) -> pd.DataFrame:
     """
     Parse EA scores and compute pEA design matrix for a given gene 
@@ -188,10 +281,25 @@ def parse_VEP(
         rec_gene = _fetch_VEP_anno(rec.info["SYMBOL"])
         ea = fetch_EA_VEP(all_ea, canon_ensp, all_ensp, csq)
         pass_af_check = af_check(rec, min_af, max_af)
+
         if not np.isnan(ea).all() and gene == rec_gene and pass_af_check:
             gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
                              for sample in samples], index=samples, dtype=int)
-            dmatrix[gene] += ea*gts  
+            dmatrix[gene] += ea*gts
+
+        if include_spliceAI and ea < 100:
+            # SpliceAI data
+            spliceAI = fetch_VEP_spliceAI(rec.info["CSQ"], canon_ensp)
+            if  spliceAI is not None and (
+                spliceAI.DS_AG >= spliceAI_thres or \
+                spliceAI.DS_AL >= spliceAI_thres or \
+                spliceAI.DS_DG >= spliceAI_thres or \
+                spliceAI.DS_DL >= spliceAI_thres):
+                gts = pd.Series([convert_zygo(rec.samples[sample]["GT"]) \
+                                for sample in samples], 
+                                index=samples, dtype=int)
+                dmatrix[gene] += 100*gts  
+
     return dmatrix   
 
 def parse_VEP_degenerate(
