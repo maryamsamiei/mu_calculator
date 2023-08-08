@@ -20,21 +20,25 @@ def parse_args():
     parser.add_argument('--maxaf', type=float, help='maximum allele frequency cutoff')
     parser.add_argument('--Ann',default='VEP', choices=('VEP', 'ANNOVAR'),help='EA annotation method')
     parser.add_argument('--cores', type=int, default=1, help='number of CPUs to use for multiprocessing')
+    parser.add_argument('--chrX', type=int,default=1, help='1 if there is sex chromosome in the VCF, 0 if there is no sex chromosome in the VCF')
     return parser.parse_args()
 
 
 
 def main(args):
-    if args.Ann=='ANNOVAR':
-        if args.ref=='hg19':
-            ref = pd.read_csv('./refs/refGene-lite_hg19.May2013.txt', delimiter='\t', header=0, index_col='gene')
-        elif args.ref=='hg38':
-            ref = pd.read_csv('./refs/refGene-lite_hg38.June2017.txt', delimiter='\t', header=0, index_col='gene')
-    elif args.Ann=='VEP':
-        if args.ref=='hg19':
-            ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh37.v75.txt', delimiter='\t', header=0, index_col='gene')
-        elif args.ref=='hg38':
-            ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh38.v94.txt', delimiter='\t', header=0, index_col='gene')
+    if args.chrX==1:
+        if args.Ann=='ANNOVAR':
+            if args.ref=='hg19':
+                ref = pd.read_csv('./refs/refGene-lite_hg19.May2013.txt', delimiter='\t', header=0, index_col='gene')
+            elif args.ref=='hg38':
+                ref = pd.read_csv('./refs/refGene-lite_hg38.June2017.txt', delimiter='\t', header=0, index_col='gene')
+        elif args.Ann=='VEP':
+            if args.ref=='hg19':
+                ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh37.v75.txt', delimiter='\t', header=0, index_col='gene')
+            elif args.ref=='hg38':
+                ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh38.v94.txt', delimiter='\t', header=0, index_col='gene')
+    elif (args.chrX==0) & (args.ref=='hg38') & (args.Ann=='VEP'):
+        ref = pd.read_csv('./refs/ENSEMBL-lite_GRCh38.v94.noX.txt', delimiter='\t', header=0, index_col='gene')
 
     samples =pd.read_csv(args.samples, header=None,index_col=0)
     controls = samples[samples.iloc[:,0]==0].index.astype(str).tolist()
