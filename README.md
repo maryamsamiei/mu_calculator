@@ -14,16 +14,17 @@ Required arguments:
 | ---------------------- |--------------------- |
 | --VCF                | Path to annotated VCF file |
 | --samples            |Path to two-column comma separated file (.csv) with sample IDs in the first column and patient labels (cases=1, controls=0) in the second column. There should be no header row|
-| --maxaf  | sets maximum allele frequency threshold, so mu will be calculated for variants with frequency less than this threshold |
+| --maxaf  | Sets maximum allele frequency threshold, so mu will be calculated for variants with frequency less than this threshold |
 | --savepath           | Path for output file |
-| --cores              | number of cpus to use |
+| --cores              | Number of cpus to use |
 
 Optional arguments:
 | Argument                 | Descripion |
 | ---------------------- |--------------------- |
 | --Ann      | Variant annotation pipeline used (options: ANNOVAR, VEP / default: VEP) |
-| --ref      | genome reference (options: hg19, hg38 / default: hg38) |
+| --ref      | Genome reference (options: hg19, hg38 / default: hg38) |
 | --GeneLength      | Path to gene length file. ( default: ./refs/gene_length.csv) |
+| --chrX       | Whether to include (1) or exclude (0) sex chromosomes in analysis (options: 1, 0 / default: 1 )|
 
 
 
@@ -32,7 +33,7 @@ Optional arguments:
 #set your working directory to mu_calculator
 cd ./mu_calculator
 #run mu.py
-python mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.csv --savepath save/directory/ --cores 20 --maxaf 0.01
+python mu.py --VCF Path/to/vcf_file.vcf.gz --samples Path/to/samples_file.csv --savepath save/directory/ --cores 20 --maxaf 0.01 --chrX 0
 ```
 
 ## Output
